@@ -410,10 +410,9 @@ class DICOMViewer:
         else:
             self.patient_age_label.config(text="不明")
         
-        # 検査日
         if hasattr(self.dicom_data, 'StudyDate'):
             study_date = str(self.dicom_data.StudyDate)
-            if len(study_date) == 8:  # YYYYMMDD形式
+            if len(study_date) == 8: 
                 formatted_date = f"{study_date[:4]}/{study_date[4:6]}/{study_date[6:]}"
                 self.study_date_label.config(text=formatted_date)
             else:
@@ -421,14 +420,12 @@ class DICOMViewer:
         else:
             self.study_date_label.config(text="不明")
         
-        # 検査部位
         if hasattr(self.dicom_data, 'BodyPartExamined'):
             body_part = str(self.dicom_data.BodyPartExamined)
             self.body_part_label.config(text=body_part if body_part else "不明")
         else:
             self.body_part_label.config(text="不明")
         
-        # モダリティ
         if hasattr(self.dicom_data, 'Modality'):
             modality = str(self.dicom_data.Modality)
             modality_map = {
@@ -443,7 +440,6 @@ class DICOMViewer:
         else:
             self.modality_label.config(text="不明")
         
-        # 機器名
         if hasattr(self.dicom_data, 'Manufacturer'):
             manufacturer = str(self.dicom_data.Manufacturer)
             if hasattr(self.dicom_data, 'ManufacturerModelName'):
