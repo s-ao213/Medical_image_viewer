@@ -7,11 +7,16 @@ from matplotlib.figure import Figure
 import pydicom
 import os
 
+# matplotlibで日本語を表示できるように設定
+plt.rcParams['font.sans-serif'] = ['MS Gothic', 'Yu Gothic', 'Meiryo', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 class DICOMViewer:
     def __init__(self, root):
         self.root = root
         self.root.title("DICOM 画像ビューア")
-        self.root.geometry("1400x800")
+        # 全画面表示に設定
+        self.root.state('zoomed')
         
         self.dicom_data = None
         self.volume = None
@@ -22,7 +27,7 @@ class DICOMViewer:
         self.view_mode = "Sagittal"         
         self.setup_ui()
         self.show_welcome_message()
-        self.root.after(500, self.load_dicom)
+        self.root.after(500, self.load_dicom_folder)
         
     def setup_ui(self):
         menubar = tk.Menu(self.root)
@@ -57,7 +62,7 @@ class DICOMViewer:
         main_frame.columnconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(1, weight=1)
-        self.fig = Figure(figsize=(14, 6), facecolor='#2b2b2b')
+        self.fig = Figure(figsize=(12, 5), facecolor='#2b2b2b')
         self.ax1 = self.fig.add_subplot(121)
         self.ax2 = self.fig.add_subplot(122)
         self.ax1.set_facecolor('#1a1a1a')
@@ -124,6 +129,22 @@ class DICOMViewer:
         self.wl_label = ttk.Label(control_frame, text="40")
         self.wl_label.grid(row=4, column=2, padx=5)
         control_frame.columnconfigure(1, weight=1)
+        
+        # 画像情報表示フレーム
+        info_frame = ttk.LabelFrame(main_frame, text="画像情報", padding="10")
+        info_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        
+        ttk.Label(info_frame, text="画像サイズ (縦×横):").grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.size_label = ttk.Label(info_frame, text="-", foreground="blue")
+        self.size_label.grid(row=0, column=1, sticky=tk.W, padx=5)
+        
+        ttk.Label(info_frame, text="スライス数:").grid(row=0, column=2, sticky=tk.W, padx=20)
+        self.slice_count_label = ttk.Label(info_frame, text="-", foreground="blue")
+        self.slice_count_label.grid(row=0, column=3, sticky=tk.W, padx=5)
+        
+        ttk.Label(info_frame, text="スライス厚:").grid(row=0, column=4, sticky=tk.W, padx=20)
+        self.slice_thickness_label = ttk.Label(info_frame, text="-", foreground="blue")
+        self.slice_thickness_label.grid(row=0, column=5, sticky=tk.W, padx=5)
 
     def show_welcome_message(self):
         self.ax1.clear()
@@ -172,6 +193,10 @@ class DICOMViewer:
                 self.window_level = int(np.mean(self.volume))
             self.ww_var.set(self.window_width)
             self.wl_var.set(self.window_level)
+            
+            # 画像情報を更新
+            self.update_image_info()
+            
             self.update_display()
             filename = os.path.basename(file_path)
             self.file_label.config(text=f"ファイル: {filename}", foreground="green")
@@ -272,6 +297,10 @@ class DICOMViewer:
                 self.window_level = int(np.mean(self.volume))
             self.ww_var.set(self.window_width)
             self.wl_var.set(self.window_level)
+            
+            # 画像情報を更新
+            self.update_image_info()
+            
             self.update_display()
             if len(file_paths) == 1:
                 filename = os.path.basename(file_paths[0])
@@ -303,6 +332,29 @@ class DICOMViewer:
         
         self.slice_other_slider.config(to=max_slice)
         self.slice_other_var.set(self.current_slice_other)
+    
+    def update_image_info(self):
+        """画像情報を更新する"""
+        if self.volume is None or self.dicom_data is None:
+            return
+        
+        # 画像サイズ (縦×横)
+        height, width = self.volume.shape[1], self.volume.shape[2]
+        self.size_label.config(text=f"{height} × {width} px")
+        
+        # スライス数
+        slice_count = self.volume.shape[0]
+        self.slice_count_label.config(text=f"{slice_count} スライス")
+        
+        # スライス厚
+        if hasattr(self.dicom_data, 'SliceThickness'):
+            thickness = self.dicom_data.SliceThickness
+            self.slice_thickness_label.config(text=f"{thickness} mm")
+        elif hasattr(self.dicom_data, 'SpacingBetweenSlices'):
+            spacing = self.dicom_data.SpacingBetweenSlices
+            self.slice_thickness_label.config(text=f"{spacing} mm")
+        else:
+            self.slice_thickness_label.config(text="不明")
     
     def change_view_mode(self, event=None):
         self.view_mode = self.view_mode_var.get()
@@ -364,6 +416,6 @@ def main():
     root = tk.Tk()
     app = DICOMViewer(root)
     root.mainloop()
-    
+
 if __name__ == "__main__":
     main()
