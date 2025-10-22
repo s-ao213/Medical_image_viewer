@@ -35,6 +35,8 @@ python dicom_viewer.py
 
 ## 画面構成
 
+![viewerの画面](image.png)
+
 ### レイアウト
 
 **画像表示エリア（画面上部）**
