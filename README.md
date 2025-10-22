@@ -26,11 +26,15 @@ DICOM画像ビューア — 簡潔マニュアル
 
 インストール: PowerShellで一度だけ実行
 
+```powershell
 pip install pydicom numpy matplotlib pillow
+```
 
 起動: dicom_viewer.pyを実行
 
+```powershell
 python dicom_viewer.py
+```
 
 起動時の挙動: フォルダ選択ダイアログが開き、選択したフォルダ内の.dcmをすべて読み込みます（単一ファイル/複数ファイルもツールバーから選択可）。
 
