@@ -7,7 +7,6 @@ from matplotlib.figure import Figure
 import pydicom
 import os
 
-# matplotlibで日本語を表示できるように設定
 plt.rcParams['font.sans-serif'] = ['MS Gothic', 'Yu Gothic', 'Meiryo', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
@@ -15,16 +14,14 @@ class DICOMViewer:
     def __init__(self, root):
         self.root = root
         self.root.title("DICOM 画像ビューア")
-        # 全画面表示に設定
         self.root.state('zoomed')
-        
         self.dicom_data = None
         self.volume = None
         self.current_slice_axial = 0
         self.current_slice_other = 0
         self.window_width = 400
         self.window_level = 40
-        self.view_mode = "Sagittal"         
+        self.view_mode = "Sagittal"
         self.setup_ui()
         self.show_welcome_message()
         self.root.after(500, self.load_dicom_folder)
@@ -43,26 +40,42 @@ class DICOMViewer:
         self.root.bind('<Control-Shift-O>', lambda e: self.load_multiple_dicom())
         self.root.bind('<Control-d>', lambda e: self.load_dicom_folder())
         self.root.bind('<Control-q>', lambda e: self.root.quit())
-        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame = ttk.Frame(self.root, padding="5")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         toolbar = ttk.Frame(main_frame)
-        toolbar.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        toolbar.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 5))
         open_btn = ttk.Button(toolbar, text="📁 ファイルを開く", command=self.load_dicom)
-        open_btn.pack(side=tk.LEFT, padx=5)
+        open_btn.pack(side=tk.LEFT, padx=3)
         open_multiple_btn = ttk.Button(toolbar, text="📂 複数ファイルを開く", command=self.load_multiple_dicom)
-        open_multiple_btn.pack(side=tk.LEFT, padx=5)
+        open_multiple_btn.pack(side=tk.LEFT, padx=3)
         open_folder_btn = ttk.Button(toolbar, text="📁 フォルダを開く", command=self.load_dicom_folder)
-        open_folder_btn.pack(side=tk.LEFT, padx=5)
+        open_folder_btn.pack(side=tk.LEFT, padx=3)
         self.file_label = ttk.Label(toolbar, text="ファイル: 未選択", foreground="gray")
-        self.file_label.pack(side=tk.LEFT, padx=20)
+        self.file_label.pack(side=tk.LEFT, padx=15)
         image_frame = ttk.Frame(main_frame)
-        image_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
-        main_frame.columnconfigure(0, weight=1)
+        image_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        info_panel = ttk.Frame(main_frame)
+        info_panel.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        canvas_scroll = tk.Canvas(info_panel, width=400, bg='#f0f0f0', highlightthickness=0)
+        scrollbar = ttk.Scrollbar(info_panel, orient="vertical", command=canvas_scroll.yview)
+        scrollable_frame = ttk.Frame(canvas_scroll)
+        scrollable_frame.bind("<Configure>", lambda e: canvas_scroll.configure(scrollregion=canvas_scroll.bbox("all")))
+        canvas_scroll.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas_scroll.configure(yscrollcommand=scrollbar.set)
+        canvas_scroll.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        def _on_mousewheel(event):
+            canvas_scroll.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas_scroll.bind_all("<MouseWheel>", _on_mousewheel)
+        control_bottom_frame = ttk.Frame(main_frame)
+        control_bottom_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
+        main_frame.columnconfigure(0, weight=2)
         main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(1, weight=1)
-        self.fig = Figure(figsize=(12, 5), facecolor='#2b2b2b')
+        main_frame.rowconfigure(1, weight=3)
+        main_frame.rowconfigure(2, weight=2)
+        self.fig = Figure(figsize=(10, 5.5), facecolor='#2b2b2b')
         self.ax1 = self.fig.add_subplot(121)
         self.ax2 = self.fig.add_subplot(122)
         self.ax1.set_facecolor('#1a1a1a')
@@ -71,80 +84,81 @@ class DICOMViewer:
         self.ax2.axis('off')
         self.canvas = FigureCanvasTkAgg(self.fig, master=image_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        control_frame = ttk.LabelFrame(main_frame, text="画像調整", padding="10")
-        control_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
-        ttk.Label(control_frame, text="Axial スライス:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        control_frame = ttk.LabelFrame(control_bottom_frame, text="画像調整", padding="10")
+        control_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        ttk.Label(control_frame, text="Axial スライス:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
         self.slice_axial_var = tk.IntVar(value=0)
-        self.slice_axial_slider = ttk.Scale(
-            control_frame, from_=0, to=0, 
-            variable=self.slice_axial_var, 
-            orient=tk.HORIZONTAL,
-            command=self.update_display
-        )
-        self.slice_axial_slider.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5)
-        self.slice_axial_label = ttk.Label(control_frame, text="0 / 0")
-        self.slice_axial_label.grid(row=0, column=2, padx=5)
-        ttk.Label(control_frame, text="表示モード:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.slice_axial_slider = ttk.Scale(control_frame, from_=0, to=0, variable=self.slice_axial_var, orient=tk.HORIZONTAL, command=self.update_display, length=400)
+        self.slice_axial_slider.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
+        self.slice_axial_label = ttk.Label(control_frame, text="0/0", width=12, font=('Arial', 10))
+        self.slice_axial_label.grid(row=0, column=2, padx=5, pady=5)
+        ttk.Label(control_frame, text="表示モード:").grid(row=0, column=3, sticky=tk.W, padx=(20, 5), pady=5)
         self.view_mode_var = tk.StringVar(value="Sagittal")
-        view_mode_combo = ttk.Combobox(
-            control_frame, 
-            textvariable=self.view_mode_var,
-            values=["Sagittal", "Coronal"],
-            state="readonly",
-            width=15
-        )
-        view_mode_combo.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        view_mode_combo = ttk.Combobox(control_frame, textvariable=self.view_mode_var, values=["Sagittal", "Coronal"], state="readonly", width=15)
+        view_mode_combo.grid(row=0, column=4, sticky=tk.W, padx=5, pady=5)
         view_mode_combo.bind("<<ComboboxSelected>>", self.change_view_mode)
-        ttk.Label(control_frame, text="スライス:").grid(row=2, column=0, sticky=tk.W, padx=5)
+        ttk.Label(control_frame, text="スライス:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
         self.slice_other_var = tk.IntVar(value=0)
-        self.slice_other_slider = ttk.Scale(
-            control_frame, from_=0, to=0,
-            variable=self.slice_other_var,
-            orient=tk.HORIZONTAL,
-            command=self.update_display
-        )
-        self.slice_other_slider.grid(row=2, column=1, sticky=(tk.W, tk.E), padx=5)
-        self.slice_other_label = ttk.Label(control_frame, text="0 / 0")
-        self.slice_other_label.grid(row=2, column=2, padx=5)
-        ttk.Label(control_frame, text="Window Width:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+        self.slice_other_slider = ttk.Scale(control_frame, from_=0, to=0, variable=self.slice_other_var, orient=tk.HORIZONTAL, command=self.update_display, length=400)
+        self.slice_other_slider.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
+        self.slice_other_label = ttk.Label(control_frame, text="0/0", width=12, font=('Arial', 10))
+        self.slice_other_label.grid(row=1, column=2, padx=5, pady=5)
+        ttk.Label(control_frame, text="Window Width:").grid(row=1, column=3, sticky=tk.W, padx=(20, 5), pady=5)
         self.ww_var = tk.IntVar(value=400)
-        self.ww_slider = ttk.Scale(
-            control_frame, from_=1, to=2000,
-            variable=self.ww_var,
-            orient=tk.HORIZONTAL,
-            command=self.update_display
-        )
-        self.ww_slider.grid(row=3, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
-        self.ww_label = ttk.Label(control_frame, text="400")
-        self.ww_label.grid(row=3, column=2, padx=5)
-        ttk.Label(control_frame, text="Window Level:").grid(row=4, column=0, sticky=tk.W, padx=5)
+        self.ww_slider = ttk.Scale(control_frame, from_=1, to=2000, variable=self.ww_var, orient=tk.HORIZONTAL, command=self.update_display, length=250)
+        self.ww_slider.grid(row=1, column=4, sticky=(tk.W, tk.E), padx=5, pady=5)
+        self.ww_label = ttk.Label(control_frame, text="400", width=8, font=('Arial', 10))
+        self.ww_label.grid(row=1, column=5, padx=5, pady=5)
+        ttk.Label(control_frame, text="Window Level:").grid(row=1, column=6, sticky=tk.W, padx=(20, 5), pady=5)
         self.wl_var = tk.IntVar(value=40)
-        self.wl_slider = ttk.Scale(
-            control_frame, from_=-1000, to=1000,
-            variable=self.wl_var,
-            orient=tk.HORIZONTAL,
-            command=self.update_display
-        )
-        self.wl_slider.grid(row=4, column=1, sticky=(tk.W, tk.E), padx=5)
-        self.wl_label = ttk.Label(control_frame, text="40")
-        self.wl_label.grid(row=4, column=2, padx=5)
-        control_frame.columnconfigure(1, weight=1)
-        
-        # 画像情報表示フレーム
-        info_frame = ttk.LabelFrame(main_frame, text="画像情報", padding="10")
-        info_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        
-        ttk.Label(info_frame, text="画像サイズ (縦×横):").grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.wl_slider = ttk.Scale(control_frame, from_=-1000, to=1000, variable=self.wl_var, orient=tk.HORIZONTAL, command=self.update_display, length=250)
+        self.wl_slider.grid(row=1, column=7, sticky=(tk.W, tk.E), padx=5, pady=5)
+        self.wl_label = ttk.Label(control_frame, text="40", width=8, font=('Arial', 10))
+        self.wl_label.grid(row=1, column=8, padx=5, pady=5)
+        control_frame.columnconfigure(1, weight=2)
+        control_frame.columnconfigure(4, weight=1)
+        control_frame.columnconfigure(7, weight=1)
+        info_frame = ttk.LabelFrame(scrollable_frame, text="画像情報", padding="8")
+        info_frame.pack(fill=tk.X, pady=3, padx=3)
+        ttk.Label(info_frame, text="サイズ:").grid(row=0, column=0, sticky=tk.W, padx=3, pady=1)
         self.size_label = ttk.Label(info_frame, text="-", foreground="blue")
-        self.size_label.grid(row=0, column=1, sticky=tk.W, padx=5)
-        
-        ttk.Label(info_frame, text="スライス数:").grid(row=0, column=2, sticky=tk.W, padx=20)
+        self.size_label.grid(row=0, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(info_frame, text="枚数:").grid(row=1, column=0, sticky=tk.W, padx=3, pady=1)
         self.slice_count_label = ttk.Label(info_frame, text="-", foreground="blue")
-        self.slice_count_label.grid(row=0, column=3, sticky=tk.W, padx=5)
-        
-        ttk.Label(info_frame, text="スライス厚:").grid(row=0, column=4, sticky=tk.W, padx=20)
+        self.slice_count_label.grid(row=1, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(info_frame, text="厚さ:").grid(row=2, column=0, sticky=tk.W, padx=3, pady=1)
         self.slice_thickness_label = ttk.Label(info_frame, text="-", foreground="blue")
-        self.slice_thickness_label.grid(row=0, column=5, sticky=tk.W, padx=5)
+        self.slice_thickness_label.grid(row=2, column=1, sticky=tk.W, padx=3, pady=1)
+        patient_frame = ttk.LabelFrame(scrollable_frame, text="患者情報", padding="8")
+        patient_frame.pack(fill=tk.X, pady=3, padx=3)
+        ttk.Label(patient_frame, text="患者名:").grid(row=0, column=0, sticky=tk.W, padx=3, pady=1)
+        self.patient_name_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.patient_name_label.grid(row=0, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="患者ID:").grid(row=1, column=0, sticky=tk.W, padx=3, pady=1)
+        self.patient_id_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.patient_id_label.grid(row=1, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="性別:").grid(row=2, column=0, sticky=tk.W, padx=3, pady=1)
+        self.patient_sex_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.patient_sex_label.grid(row=2, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="生年月日:").grid(row=3, column=0, sticky=tk.W, padx=3, pady=1)
+        self.patient_birth_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.patient_birth_label.grid(row=3, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="年齢:").grid(row=4, column=0, sticky=tk.W, padx=3, pady=1)
+        self.patient_age_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.patient_age_label.grid(row=4, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="検査日:").grid(row=5, column=0, sticky=tk.W, padx=3, pady=1)
+        self.study_date_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.study_date_label.grid(row=5, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="検査部位:").grid(row=6, column=0, sticky=tk.W, padx=3, pady=1)
+        self.body_part_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.body_part_label.grid(row=6, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="モダリティ:").grid(row=7, column=0, sticky=tk.W, padx=3, pady=1)
+        self.modality_label = ttk.Label(patient_frame, text="-", foreground="blue")
+        self.modality_label.grid(row=7, column=1, sticky=tk.W, padx=3, pady=1)
+        ttk.Label(patient_frame, text="機器名:").grid(row=8, column=0, sticky=tk.W, padx=3, pady=1)
+        self.manufacturer_label = ttk.Label(patient_frame, text="-", foreground="blue", wraplength=250)
+        self.manufacturer_label.grid(row=8, column=1, sticky=tk.W, padx=3, pady=1)
+        patient_frame.columnconfigure(1, weight=1)
 
     def show_welcome_message(self):
         self.ax1.clear()
@@ -355,6 +369,91 @@ class DICOMViewer:
             self.slice_thickness_label.config(text=f"{spacing} mm")
         else:
             self.slice_thickness_label.config(text="不明")
+        
+        # 患者名
+        if hasattr(self.dicom_data, 'PatientName'):
+            patient_name = str(self.dicom_data.PatientName)
+            self.patient_name_label.config(text=patient_name if patient_name else "不明")
+        else:
+            self.patient_name_label.config(text="不明")
+        
+        # 患者ID
+        if hasattr(self.dicom_data, 'PatientID'):
+            patient_id = str(self.dicom_data.PatientID)
+            self.patient_id_label.config(text=patient_id if patient_id else "不明")
+        else:
+            self.patient_id_label.config(text="不明")
+        
+        # 性別
+        if hasattr(self.dicom_data, 'PatientSex'):
+            sex_map = {'M': '男性', 'F': '女性', 'O': 'その他', '': '不明'}
+            sex = self.dicom_data.PatientSex
+            self.patient_sex_label.config(text=sex_map.get(sex, sex))
+        else:
+            self.patient_sex_label.config(text="不明")
+        
+        # 生年月日
+        if hasattr(self.dicom_data, 'PatientBirthDate'):
+            birth_date = str(self.dicom_data.PatientBirthDate)
+            if len(birth_date) == 8:  # YYYYMMDD形式
+                formatted_date = f"{birth_date[:4]}/{birth_date[4:6]}/{birth_date[6:]}"
+                self.patient_birth_label.config(text=formatted_date)
+            else:
+                self.patient_birth_label.config(text=birth_date if birth_date else "不明")
+        else:
+            self.patient_birth_label.config(text="不明")
+        
+        # 年齢
+        if hasattr(self.dicom_data, 'PatientAge'):
+            age = str(self.dicom_data.PatientAge)
+            self.patient_age_label.config(text=age if age else "不明")
+        else:
+            self.patient_age_label.config(text="不明")
+        
+        # 検査日
+        if hasattr(self.dicom_data, 'StudyDate'):
+            study_date = str(self.dicom_data.StudyDate)
+            if len(study_date) == 8:  # YYYYMMDD形式
+                formatted_date = f"{study_date[:4]}/{study_date[4:6]}/{study_date[6:]}"
+                self.study_date_label.config(text=formatted_date)
+            else:
+                self.study_date_label.config(text=study_date if study_date else "不明")
+        else:
+            self.study_date_label.config(text="不明")
+        
+        # 検査部位
+        if hasattr(self.dicom_data, 'BodyPartExamined'):
+            body_part = str(self.dicom_data.BodyPartExamined)
+            self.body_part_label.config(text=body_part if body_part else "不明")
+        else:
+            self.body_part_label.config(text="不明")
+        
+        # モダリティ
+        if hasattr(self.dicom_data, 'Modality'):
+            modality = str(self.dicom_data.Modality)
+            modality_map = {
+                'CT': 'CT (コンピュータ断層撮影)',
+                'MR': 'MRI (磁気共鳴画像)',
+                'CR': 'CR (コンピュータX線撮影)',
+                'DX': 'DX (デジタルX線撮影)',
+                'US': 'US (超音波)',
+                'XA': 'XA (X線血管造影)'
+            }
+            self.modality_label.config(text=modality_map.get(modality, modality))
+        else:
+            self.modality_label.config(text="不明")
+        
+        # 機器名
+        if hasattr(self.dicom_data, 'Manufacturer'):
+            manufacturer = str(self.dicom_data.Manufacturer)
+            if hasattr(self.dicom_data, 'ManufacturerModelName'):
+                model = str(self.dicom_data.ManufacturerModelName)
+                manufacturer_text = f"{manufacturer} {model}"
+            else:
+                manufacturer_text = manufacturer
+            self.manufacturer_label.config(text=manufacturer_text if manufacturer_text else "不明")
+        else:
+            self.manufacturer_label.config(text="不明")
     
     def change_view_mode(self, event=None):
         self.view_mode = self.view_mode_var.get()
@@ -377,12 +476,8 @@ class DICOMViewer:
         self.current_slice_other = int(self.slice_other_var.get())
         self.window_width = int(self.ww_var.get())
         self.window_level = int(self.wl_var.get())
-        self.slice_axial_label.config(
-            text=f"{self.current_slice_axial} / {self.volume.shape[0] - 1}"
-        )
-        self.slice_other_label.config(
-            text=f"{self.current_slice_other} / {self.slice_other_slider.cget('to')}"
-        )
+        self.slice_axial_label.config(text=f"{self.current_slice_axial}/{self.volume.shape[0]-1}")
+        self.slice_other_label.config(text=f"{self.current_slice_other}/{int(self.slice_other_slider.cget('to'))}")
         self.ww_label.config(text=str(self.window_width))
         self.wl_label.config(text=str(self.window_level))
         axial_img = self.volume[self.current_slice_axial, :, :]
@@ -390,22 +485,20 @@ class DICOMViewer:
         if self.view_mode == "Sagittal":
             other_img = self.volume[:, :, self.current_slice_other]
             other_windowed = self.apply_window(other_img, self.window_width, self.window_level)
-        else: 
+        else:
             other_img = self.volume[:, self.current_slice_other, :]
             other_windowed = self.apply_window(other_img, self.window_width, self.window_level)
         self.ax1.clear()
         self.ax2.clear()
         self.ax1.imshow(axial_windowed, cmap='gray', aspect='auto')
-        self.ax1.set_title(f'Axial (Slice {self.current_slice_axial})', 
-                        color='white', fontsize=12, fontweight='bold')
+        self.ax1.set_title(f'Axial (Slice {self.current_slice_axial})', color='white', fontsize=12, fontweight='bold')
         self.ax1.axis('off')
         if self.view_mode == "Sagittal":
             self.ax1.axvline(x=self.current_slice_other, color='cyan', linewidth=2, linestyle='--', alpha=0.8)
-        else:  
+        else:
             self.ax1.axhline(y=self.current_slice_other, color='yellow', linewidth=2, linestyle='--', alpha=0.8)
         self.ax2.imshow(other_windowed, cmap='gray', aspect='auto')
-        self.ax2.set_title(f'{self.view_mode} (Slice {self.current_slice_other})',
-                        color='white', fontsize=12, fontweight='bold')
+        self.ax2.set_title(f'{self.view_mode} (Slice {self.current_slice_other})', color='white', fontsize=12, fontweight='bold')
         self.ax2.axis('off')
         self.ax1.set_facecolor('#1a1a1a')
         self.ax2.set_facecolor('#1a1a1a')
