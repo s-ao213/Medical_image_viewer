@@ -484,6 +484,7 @@ class DICOMViewer:
         else:
             other_img = self.volume[:, self.current_slice_other, :]
             other_windowed = self.apply_window(other_img, self.window_width, self.window_level)
+            other_windowed = np.flipud(np.fliplr(other_windowed))
         self.ax1.clear()
         self.ax2.clear()
         self.ax1.imshow(axial_windowed, cmap='gray', aspect='auto')
